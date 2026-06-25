@@ -102,16 +102,14 @@ export async function createContactRequest(input: {
   const prisma = await getPrisma();
   if (prisma) {
     try {
-      if ('contactRequest' in prisma) {
-        const saved = await (prisma as any).contactRequest.create({
-          data: {
-            name: record.name,
-            phone: record.phone,
-            status: 'new',
-          },
-        });
-        return toRecord(saved);
-      }
+      const saved = await prisma.contactRequest.create({
+        data: {
+          name: record.name,
+          phone: record.phone,
+          status: 'new',
+        },
+      });
+      return toRecord(saved);
     } catch (error) {
       console.error('Prisma save contact failed, using file store:', error);
     }
@@ -127,14 +125,12 @@ export async function listContactRequests(): Promise<ContactRequestRecord[]> {
   const prisma = await getPrisma();
   if (prisma) {
     try {
-      if ('contactRequest' in prisma) {
-        const rows = await (prisma as any).contactRequest.findMany({
-          orderBy: { createdAt: 'desc' },
-        });
-        if (rows.length > 0) {
-          return rows.map((row: any) => toRecord(row));
-        }
-      }
+      const rows = await prisma.contactRequest.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+      // A successful DB query is authoritative — return it even when empty,
+      // otherwise an empty database would incorrectly surface stale file data.
+      return rows.map((row) => toRecord(row));
     } catch (error) {
       console.error('Prisma fetch contacts failed, using file store:', error);
     }
@@ -153,13 +149,11 @@ export async function updateContactRequestStatus(
   const prisma = await getPrisma();
   if (prisma) {
     try {
-      if ('contactRequest' in prisma) {
-        const updated = await (prisma as any).contactRequest.update({
-          where: { id },
-          data: { status },
-        });
-        return toRecord(updated);
-      }
+      const updated = await prisma.contactRequest.update({
+        where: { id },
+        data: { status },
+      });
+      return toRecord(updated);
     } catch {
       // fall through to file store
     }

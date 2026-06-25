@@ -25,6 +25,18 @@ import { rateLimit } from '../middleware/rateLimit';
 const router = Router();
 const ONE_DAY_MS = 60 * 60 * 24 * 1000;
 
+/** Coerce to a finite, positive number or return null when invalid. */
+function toPositiveNumber(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Coerce to a non-empty trimmed string or return null. */
+function toRequiredString(value: unknown): string | null {
+  const s = typeof value === 'string' ? value.trim() : '';
+  return s.length > 0 ? s : null;
+}
+
 // Brute-force protection on the login endpoint.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60_000,
@@ -108,14 +120,26 @@ router.get('/cranes', requireRole('super_admin'), async (_req, res) => {
 router.post('/cranes', requireRole('super_admin'), async (req, res) => {
   try {
     const data = req.body ?? {};
+    const modelName = toRequiredString(data.modelName);
+    const capacity = toPositiveNumber(data.capacity);
+    const boomLength = toPositiveNumber(data.boomLength);
+    const price = toRequiredString(data.price);
+
+    if (!modelName) return sendError(res, 'modelName is required', 400);
+    if (capacity === null)
+      return sendError(res, 'capacity must be a positive number', 400);
+    if (boomLength === null)
+      return sendError(res, 'boomLength must be a positive number', 400);
+    if (!price) return sendError(res, 'price is required', 400);
+
     const crane = await prisma.crane.create({
       data: {
-        modelName: data.modelName,
-        capacity: parseFloat(data.capacity),
-        boomLength: parseFloat(data.boomLength),
-        price: data.price,
-        description: data.description,
-        images: data.images || [],
+        modelName,
+        capacity,
+        boomLength,
+        price,
+        description: typeof data.description === 'string' ? data.description : '',
+        images: Array.isArray(data.images) ? data.images : [],
       },
     });
     return res.status(201).json(crane);
@@ -127,15 +151,32 @@ router.post('/cranes', requireRole('super_admin'), async (req, res) => {
 router.put('/cranes/:id', requireRole('super_admin'), async (req, res) => {
   try {
     const data = req.body ?? {};
+
+    let capacity: number | undefined;
+    if (data.capacity !== undefined) {
+      const parsed = toPositiveNumber(data.capacity);
+      if (parsed === null)
+        return sendError(res, 'capacity must be a positive number', 400);
+      capacity = parsed;
+    }
+
+    let boomLength: number | undefined;
+    if (data.boomLength !== undefined) {
+      const parsed = toPositiveNumber(data.boomLength);
+      if (parsed === null)
+        return sendError(res, 'boomLength must be a positive number', 400);
+      boomLength = parsed;
+    }
+
     const crane = await prisma.crane.update({
       where: { id: req.params.id },
       data: {
         modelName: data.modelName,
-        capacity: data.capacity ? parseFloat(data.capacity) : undefined,
-        boomLength: data.boomLength ? parseFloat(data.boomLength) : undefined,
+        capacity,
+        boomLength,
         price: data.price,
         description: data.description,
-        images: data.images,
+        images: Array.isArray(data.images) ? data.images : undefined,
       },
     });
     return res.json(crane);
@@ -169,12 +210,20 @@ router.get('/sponsors', requireRole('super_admin'), async (_req, res) => {
 router.post('/sponsors', requireRole('super_admin'), async (req, res) => {
   try {
     const data = req.body ?? {};
+    const name = toRequiredString(data.name);
+    const logoUrl = toRequiredString(data.logoUrl);
+
+    if (!name) return sendError(res, 'name is required', 400);
+    if (!logoUrl) return sendError(res, 'logoUrl is required', 400);
+
+    const displayOrder = Number.parseInt(String(data.displayOrder), 10);
+
     const sponsor = await prisma.sponsor.create({
       data: {
-        name: data.name,
-        logoUrl: data.logoUrl,
-        websiteUrl: data.websiteUrl,
-        displayOrder: data.displayOrder ? parseInt(data.displayOrder) : 0,
+        name,
+        logoUrl,
+        websiteUrl: toRequiredString(data.websiteUrl) ?? undefined,
+        displayOrder: Number.isFinite(displayOrder) ? displayOrder : 0,
       },
     });
     return res.status(201).json(sponsor);
@@ -192,9 +241,11 @@ router.put('/sponsors/:id', requireRole('super_admin'), async (req, res) => {
         name: data.name,
         logoUrl: data.logoUrl,
         websiteUrl: data.websiteUrl,
-        displayOrder: data.displayOrder
-          ? parseInt(data.displayOrder)
-          : undefined,
+        displayOrder:
+          data.displayOrder !== undefined &&
+          Number.isFinite(Number.parseInt(String(data.displayOrder), 10))
+            ? Number.parseInt(String(data.displayOrder), 10)
+            : undefined,
       },
     });
     return res.json(sponsor);
