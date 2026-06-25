@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  username String @unique
+  password String
+}
+
+model Sponsor {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  logoUrl      String
+  websiteUrl   String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Crane {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  modelName   String
+  capacity    Float    // Lifting capacity in tons
+  boomLength  Float    // Boom length in meters
+  price       String   // Price string or float
+  description String
+  images      String[] // Array of image URLs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GlobalSettings {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  phoneNumbers   String[]
+  telegramBot    String?
+  address        String?
+  seoTitle       String?
+  seoDescription String?
+}
+
+model RentalOrder {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  phone      String
+  location   String
+  craneModel String?
+  status     String   @default("new")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ContactRequest {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  phone     String
+  status    String   @default("new")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

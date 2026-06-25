@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+*.log
+
+# Prisma generated client
+/generated
+
+# Uploaded files and local data store
+public/uploads
+data/*.json
