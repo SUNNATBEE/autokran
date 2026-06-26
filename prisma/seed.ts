@@ -110,21 +110,32 @@ const cranes = [
 ];
 
 async function main() {
-  const existing = await prisma.crane.count();
-  if (existing > 0) {
-    console.log(`Cranes already present (${existing}). Skipping seed.`);
+  // Dedupe-safe: only insert default cranes that aren't already in the DB
+  // (matched by modelName + capacity). Existing cranes are left untouched, and
+  // re-running never creates duplicates.
+  const existing = await prisma.crane.findMany({
+    select: { modelName: true, capacity: true },
+  });
+  const present = new Set(existing.map((e) => `${e.modelName}__${e.capacity}`));
+
+  const toAdd = cranes.filter(
+    (c) => !present.has(`${c.modelName}__${c.capacity}`)
+  );
+
+  if (toAdd.length === 0) {
+    console.log('All default cranes already present. Nothing to seed.');
     return;
   }
 
   await prisma.crane.createMany({
-    data: cranes.map((c) => ({
+    data: toAdd.map((c) => ({
       ...c,
       price: '',
       discountPercent: 0,
       available: true,
     })),
   });
-  console.log(`Seeded ${cranes.length} cranes.`);
+  console.log(`Seeded ${toAdd.length} crane(s).`);
 }
 
 main()
