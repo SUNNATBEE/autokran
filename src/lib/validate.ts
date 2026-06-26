@@ -38,17 +38,27 @@ export function validateContact(body: unknown): ValidationResult<{
   return { ok: errors.length === 0, errors, data: { name, phone } };
 }
 
+/** Parse a latitude/longitude only if it's a finite number in valid range. */
+function toCoord(value: unknown, max: number): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && Math.abs(n) <= max ? n : null;
+}
+
 export function validateOrder(body: unknown): ValidationResult<{
   name: string;
   phone: string;
   location: string;
   craneModel: string | null;
+  lat: number | null;
+  lng: number | null;
 }> {
   const b = (body ?? {}) as Record<string, unknown>;
   const name = cleanString(b.name, 100);
   const phone = cleanString(b.phone, 25);
   const location = cleanString(b.location, 300);
   const craneModelRaw = cleanString(b.craneModel, 100);
+  const lat = toCoord(b.lat, 90);
+  const lng = toCoord(b.lng, 180);
   const errors: string[] = [];
 
   if (name.length < 2) errors.push('A valid name is required');
@@ -63,6 +73,8 @@ export function validateOrder(body: unknown): ValidationResult<{
       phone,
       location,
       craneModel: craneModelRaw || null,
+      lat,
+      lng,
     },
   };
 }

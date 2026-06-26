@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { createContactRequest } from '../lib/contacts-store';
 import { validateContact } from '../lib/validate';
-import { escapeHtml, sendTelegramMessage } from '../lib/telegram';
+import { escapeHtml, sendTelegramMessage, tashkentTime } from '../lib/telegram';
 import { rateLimit } from '../middleware/rateLimit';
 
 const router = Router();
@@ -27,12 +27,15 @@ router.post('/', submitLimiter, async (req, res) => {
       phone: data.phone,
     });
 
+    const telHref = contact.phone.replace(/[^\d+]/g, '');
     const text = [
-      "📞 <b>Yangi bog'lanish so'rovi!</b>",
+      "📞 <b>YANGI QO‘NG‘IROQ SO‘ROVI</b> — AUTOKRAN.UZ",
       '━━━━━━━━━━━━━━━━━━━━',
-      `👤 Ism: ${escapeHtml(contact.name)}`,
-      `📞 Telefon: ${escapeHtml(contact.phone)}`,
+      `👤 <b>Ism:</b> ${escapeHtml(contact.name)}`,
+      `📞 <b>Telefon:</b> <a href="tel:${escapeHtml(telHref)}">${escapeHtml(contact.phone)}</a>`,
+      `🕒 <b>Vaqt:</b> ${tashkentTime()}`,
       '━━━━━━━━━━━━━━━━━━━━',
+      '📌 Mijoz qayta qo‘ng‘iroqni kutmoqda.',
       '#boglanish #autokran',
     ].join('\n');
 

@@ -17,6 +17,18 @@ export function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;');
 }
 
+/** Current time in Tashkent, formatted for the notification footer. */
+export function tashkentTime(): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Asia/Tashkent',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date());
+}
+
 export interface TelegramResult {
   ok: boolean;
   skipped?: boolean;
@@ -64,6 +76,35 @@ export async function sendTelegramMessage(
     return { ok: true };
   } catch (error) {
     console.error('Telegram request failed:', error);
+    return { ok: false, error };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Send a map pin (native Telegram location) so the operator can tap it and get
+ * turn-by-turn navigation. Fails soft like sendTelegramMessage.
+ */
+export async function sendTelegramLocation(
+  latitude: number,
+  longitude: number
+): Promise<TelegramResult> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return { ok: false, skipped: true };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${TELEGRAM_API}/bot${token}/sendLocation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, latitude, longitude }),
+      signal: controller.signal,
+    });
+    return response.ok ? { ok: true } : { ok: false };
+  } catch (error) {
     return { ok: false, error };
   } finally {
     clearTimeout(timeout);
