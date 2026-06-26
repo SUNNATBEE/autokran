@@ -134,9 +134,9 @@ export async function listRentalOrders(): Promise<RentalOrderRecord[]> {
       const rows = await prisma.rentalOrder.findMany({
         orderBy: { createdAt: 'desc' },
       });
-      if (rows.length > 0) {
-        return rows.map((row) => toRecord(row));
-      }
+      // A successful DB query is authoritative — return it even when empty,
+      // otherwise an empty database would incorrectly surface stale file data.
+      return rows.map((row) => toRecord(row));
     } catch (error) {
       console.error('Prisma fetch failed, using file store:', error);
     }
