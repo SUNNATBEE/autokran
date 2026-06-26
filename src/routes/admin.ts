@@ -117,27 +117,50 @@ router.get('/cranes', requireRole('super_admin'), async (_req, res) => {
   }
 });
 
+// Clamp a discount to a sane 0..90 range.
+function normalizeDiscount(value: unknown): number {
+  const n = parseInt(String(value ?? 0), 10);
+  if (Number.isNaN(n)) return 0;
+  return Math.min(90, Math.max(0, n));
+}
+
+function toNullableInt(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const n = parseInt(String(value), 10);
+  return Number.isNaN(n) ? null : n;
+}
+
 router.post('/cranes', requireRole('super_admin'), async (req, res) => {
   try {
     const data = req.body ?? {};
     const modelName = toRequiredString(data.modelName);
     const capacity = toPositiveNumber(data.capacity);
     const boomLength = toPositiveNumber(data.boomLength);
-    const price = toRequiredString(data.price);
+    // `price` is the legacy free-text field; the public site now uses the
+    // numeric `pricePerMonth`, so price is optional (defaults to '').
+    const price = toRequiredString(data.price) ?? '';
 
     if (!modelName) return sendError(res, 'modelName is required', 400);
     if (capacity === null)
       return sendError(res, 'capacity must be a positive number', 400);
     if (boomLength === null)
       return sendError(res, 'boomLength must be a positive number', 400);
-    if (!price) return sendError(res, 'price is required', 400);
 
     const crane = await prisma.crane.create({
       data: {
         modelName,
+        brand: data.brand || null,
         capacity,
         boomLength,
+        auxBoomLength:
+          data.auxBoomLength !== undefined && data.auxBoomLength !== ''
+            ? parseFloat(data.auxBoomLength)
+            : null,
         price,
+        pricePerMonth: toNullableInt(data.pricePerMonth),
+        discountPercent: normalizeDiscount(data.discountPercent),
+        available: data.available !== undefined ? Boolean(data.available) : true,
+        displayOrder: data.displayOrder ? parseInt(data.displayOrder, 10) : 0,
         description: typeof data.description === 'string' ? data.description : '',
         images: Array.isArray(data.images) ? data.images : [],
       },
@@ -172,9 +195,28 @@ router.put('/cranes/:id', requireRole('super_admin'), async (req, res) => {
       where: { id: req.params.id },
       data: {
         modelName: data.modelName,
+        brand: data.brand,
         capacity,
         boomLength,
+        auxBoomLength:
+          data.auxBoomLength !== undefined && data.auxBoomLength !== ''
+            ? parseFloat(data.auxBoomLength)
+            : undefined,
         price: data.price,
+        pricePerMonth:
+          data.pricePerMonth !== undefined
+            ? toNullableInt(data.pricePerMonth)
+            : undefined,
+        discountPercent:
+          data.discountPercent !== undefined
+            ? normalizeDiscount(data.discountPercent)
+            : undefined,
+        available:
+          data.available !== undefined ? Boolean(data.available) : undefined,
+        displayOrder:
+          data.displayOrder !== undefined
+            ? parseInt(data.displayOrder, 10)
+            : undefined,
         description: data.description,
         images: Array.isArray(data.images) ? data.images : undefined,
       },
@@ -372,6 +414,91 @@ router.post('/settings', requireRole('super_admin'), async (req, res) => {
     return sendError(res, 'Failed to save settings', 500);
   }
 });
+
+// --- Dashboard statistics (super_admin + order_manager) ---
+
+// GET /api/admin/stats — aggregate counts for the admin dashboard.
+router.get(
+  '/stats',
+  requireRole('super_admin', 'order_manager'),
+  async (_req, res) => {
+    try {
+      const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+      const weekAgo = Date.now() - WEEK_MS;
+
+      const [orders, contacts] = await Promise.all([
+        listRentalOrders(),
+        listContactRequests(),
+      ]);
+
+      // Crane / sponsor / visit data lives only in Prisma — fail soft if the
+      // DB is unavailable so the dashboard still renders the lead numbers.
+      let craneTotal = 0;
+      let craneAvailable = 0;
+      let sponsorTotal = 0;
+      let visits: { day: string; count: number }[] = [];
+      try {
+        const [cranes, sponsors, visitRows] = await Promise.all([
+          prisma.crane.findMany({ select: { available: true } }),
+          prisma.sponsor.count(),
+          prisma.visit.findMany({ orderBy: { day: 'desc' }, take: 14 }),
+        ]);
+        craneTotal = cranes.length;
+        craneAvailable = cranes.filter((c) => c.available).length;
+        sponsorTotal = sponsors;
+        visits = visitRows
+          .map((v) => ({ day: v.day, count: v.count }))
+          .reverse();
+      } catch {
+        // DB not configured — leave Prisma-backed numbers at 0.
+      }
+
+      const ordersByStatus = orders.reduce<Record<string, number>>(
+        (acc, o) => {
+          acc[o.status] = (acc[o.status] ?? 0) + 1;
+          return acc;
+        },
+        {}
+      );
+
+      const newOrdersThisWeek = orders.filter(
+        (o) => new Date(o.createdAt).getTime() >= weekAgo
+      ).length;
+
+      const visitsTotal = visits.reduce((sum, v) => sum + v.count, 0);
+
+      // Newest 5 leads (orders) for the dashboard table.
+      const recentLeads = orders.slice(0, 5).map((o) => ({
+        id: o.id,
+        name: o.name,
+        phone: o.phone,
+        location: o.location,
+        craneModel: o.craneModel,
+        status: o.status,
+        createdAt: o.createdAt,
+      }));
+
+      return res.json({
+        cranes: { total: craneTotal, available: craneAvailable },
+        sponsors: sponsorTotal,
+        orders: {
+          total: orders.length,
+          newThisWeek: newOrdersThisWeek,
+          byStatus: ordersByStatus,
+        },
+        contacts: {
+          total: contacts.length,
+          new: contacts.filter((c) => c.status === 'new').length,
+        },
+        visits: { total: visitsTotal, daily: visits },
+        recentLeads,
+      });
+    } catch (error) {
+      console.error('Failed to build stats:', error);
+      return sendError(res, 'Failed to build stats', 500);
+    }
+  }
+);
 
 // --- Upload (super_admin) ---
 

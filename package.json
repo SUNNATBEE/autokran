@@ -11,6 +11,7 @@
     "start:prod": "prisma db push --accept-data-loss --skip-generate && node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate"
   },
   "engines": {

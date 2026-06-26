@@ -7,7 +7,8 @@ export interface AdminTokenPayload {
 }
 
 export function getDashboardPath(role: AdminRole): string {
-  return role === 'order_manager' ? '/admin/orders' : '/admin/settings';
+  // super_admin lands on the overview dashboard (/admin); order_manager on orders.
+  return role === 'order_manager' ? '/admin/orders' : '/admin';
 }
 
 export function canAccessAdminPath(role: AdminRole, pathname: string): boolean {

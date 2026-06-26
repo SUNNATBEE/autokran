@@ -24,15 +24,28 @@ model Sponsor {
 }
 
 model Crane {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  modelName   String
-  capacity    Float    // Lifting capacity in tons
-  boomLength  Float    // Boom length in meters
-  price       String   // Price string or float
-  description String
-  images      String[] // Array of image URLs
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  modelName       String
+  brand           String?  // XCMG, SANY, ZOOMLION, ...
+  capacity        Float    // Lifting capacity in tons
+  boomLength      Float    // Main boom length in meters
+  auxBoomLength   Float?   // Max / auxiliary boom length in meters
+  price           String   // Legacy free-text price (kept for backward compat)
+  pricePerMonth   Int?     // Numeric monthly price in UZS — drives discount math
+  discountPercent Int      @default(0) // 0..90; 0 = no discount
+  available       Boolean  @default(true) // false = hidden from the public site
+  displayOrder    Int      @default(0) // ascending sort on the public site
+  description     String
+  images          String[] // Array of image URLs (/uploads/... or /images/...)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Daily page-view counter for the in-panel visitor statistics.
+model Visit {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  day   String @unique // "YYYY-MM-DD" (UTC)
+  count Int    @default(0)
 }
 
 model GlobalSettings {

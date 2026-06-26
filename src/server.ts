@@ -11,6 +11,7 @@ import cookieParser from 'cookie-parser';
 import contactsRouter from './routes/contacts';
 import sendTelegramRouter from './routes/sendTelegram';
 import siteSettingsRouter from './routes/siteSettings';
+import publicRouter from './routes/public';
 import adminRouter from './routes/admin';
 
 const app = express();
@@ -72,6 +73,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/api/contacts', contactsRouter);
 app.use('/api/send-telegram', sendTelegramRouter);
 app.use('/api/site-settings', siteSettingsRouter);
+app.use('/api', publicRouter); // public: GET /api/cranes, POST /api/track
 app.use('/api/admin', adminRouter);
 
 // 404 fallback for unknown API routes
